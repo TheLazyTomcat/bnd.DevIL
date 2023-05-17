@@ -1,3 +1,73 @@
+{-------------------------------------------------------------------------------
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+-------------------------------------------------------------------------------}
+{===============================================================================
+
+  DevIL - header file for the ImageLib
+
+    Direct translation of C header file il.h, a part of bindings for DevIL
+    library, into pascal.
+
+    More info about the DevIL library can be found at: http://openil.sf.net
+
+    Translation notes:
+
+      - macros were expanded in-place or implemented as normal functions
+      - some function parameters and structure fields were renamed (usually by
+        prepending the name with "a") because they collide with pascal reserved
+        words (eg. Type, File, ...)
+      - most inline comments present in header files were copied into the
+        translation at corresponding place
+      - DevILU require DevIL (DevIL.dll) to be already loaded and initialized,
+        similarly DevILUT require both DevIL and DevILU to be already loaded
+        and initialized
+      - if you plan to use unicode version of the api, remember to also use
+        proper linked libraries (DLLs) builds
+      - DevILUT provides only GDI and OpenGL interfaces, as these are the only
+        ones exported by provided binaries (DLLs)
+      - some helper function are provided for conversions between usual pascal
+        types and types used in the API (booleans, strings)
+      - current translation is for Windows OS only
+
+    WARNING - the DevIL library is, as far as I know, NOT thread safe. You can
+              use it in any number of threads, but make sure it will never
+              execute any of its code concurently (in more than one thread at
+              any given time).
+
+  Version 1.0 (2023-05-__)
+
+  Build against DevIL library version 1.8.0
+
+  Last change 2023-05-__
+
+  ©2023 František Milt
+
+  Contacts:
+    František Milt: frantisek.milt@gmail.com
+
+  Support:
+    If you find this code useful, please consider supporting its author(s) by
+    making a small donation using the following link(s):
+
+      https://www.paypal.me/FMilt
+
+  Changelog:
+    For detailed changelog and history please refer to this git repository:
+
+      github.com/TheLazyTomcat/Bnd.DevIL
+
+  Dependencies:
+    AuxTypes       - github.com/TheLazyTomcat/Lib.AuxTypes
+    StrRect        - github.com/TheLazyTomcat/Lib.StrRect
+    DynLibUtils    - github.com/TheLazyTomcat/Lib.DynLibUtils
+    WindowsVersion - github.com/TheLazyTomcat/Lib.WindowsVersion
+    SimpleCPUID    - github.com/TheLazyTomcat/Lib.SimpleCPUID
+
+===============================================================================}
 unit DevIL;
 
 {$INCLUDE '.\DevIL_defs.inc'}
@@ -5,18 +75,11 @@ unit DevIL;
 interface
 
 uses
-  SysUtils,
+  Classes,
   AuxTypes;
 
 const
   IL_UNICODE = {$IFDEF DevIL_Unicode}True{$ELSE}False{$ENDIF};
-
-{===============================================================================
-    Library-specific exceptions
-===============================================================================}
-type
-  EILException = class(Exception);
-  {$message 'is this needed?'}  
 
 {===============================================================================
     Basic types
@@ -564,10 +627,32 @@ Function ILStrDecode(Str: ILstring): String;
 Function ILBoolEncode(B: Boolean): ILboolean;
 Function ILBoolDecode(B: ILboolean): Boolean;
 
+
+Function ilLoadStream(Stream: TStream): ILuint;
+
 implementation
 
 uses
   DynLibUtils, StrRect;
+
+type
+  TILStreamReadData = record
+    Stream:   TStream;
+    InitPos:  Int64;
+  end;
+  PILStreamReadData = ^TILStreamReadData;
+(*
+procedure StreamRead_CloseRProc(Handle: ILHANDLE); stdcall;
+Function StreamRead_EofProc(Handle: ILHANDLE): ILboolean; stdcall;
+Function StreamRead_GetcProc(Handle: ILHANDLE): ILint; stdcall;
+Function StreamRead_OpenRProc(FileName: ILconst_string): ILHANDLE; stdcall;
+Function StreamRead_ReadProc(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall;
+Function StreamRead_SeekRProc(Handle: ILHANDLE; Offset,Mode: ILuint): ILint; stdcall;
+Function StreamRead_TellRProc(Handle: ILHANDLE): ILint; stdcall;
+*)
+Function ilLoadStream(Stream: TStream): ILuint;
+begin
+end;
 
 {===============================================================================
     Header macros - implementation

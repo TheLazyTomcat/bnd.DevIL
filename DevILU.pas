@@ -1,3 +1,73 @@
+{-------------------------------------------------------------------------------
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+-------------------------------------------------------------------------------}
+{===============================================================================
+
+  DevILU - header file for the ImageLib utility
+
+    Direct translation of C header file ilu.h, a part of bindings for DevIL
+    library, into pascal.
+
+    More info about the DevIL library can be found at: http://openil.sf.net
+
+    Translation notes:
+
+      - macros were expanded in-place or implemented as normal functions
+      - some function parameters and structure fields were renamed (usually by
+        prepending the name with "a") because they collide with pascal reserved
+        words (eg. Type, File, ...)
+      - most inline comments present in header files were copied into the
+        translation at corresponding place
+      - DevILU require DevIL (DevIL.dll) to be already loaded and initialized,
+        similarly DevILUT require both DevIL and DevILU to be already loaded
+        and initialized
+      - if you plan to use unicode version of the api, remember to also use
+        proper linked libraries (DLLs) builds
+      - DevILUT provides only GDI and OpenGL interfaces, as these are the only
+        ones exported by provided binaries (DLLs)
+      - some helper function are provided for conversions between usual pascal
+        types and types used in the API (booleans, strings)
+      - current translation is for Windows OS only
+
+    WARNING - the DevIL library is, as far as I know, NOT thread safe. You can
+              use it in any number of threads, but make sure it will never
+              execute any of its code concurently (in more than one thread at
+              any given time).
+
+  Version 1.0 (2023-05-__)
+
+  Build against DevIL library version 1.8.0
+
+  Last change 2023-05-__
+
+  ©2023 František Milt
+
+  Contacts:
+    František Milt: frantisek.milt@gmail.com
+
+  Support:
+    If you find this code useful, please consider supporting its author(s) by
+    making a small donation using the following link(s):
+
+      https://www.paypal.me/FMilt
+
+  Changelog:
+    For detailed changelog and history please refer to this git repository:
+
+      github.com/TheLazyTomcat/Bnd.DevIL
+
+  Dependencies:
+    AuxTypes       - github.com/TheLazyTomcat/Lib.AuxTypes
+    StrRect        - github.com/TheLazyTomcat/Lib.StrRect
+    DynLibUtils    - github.com/TheLazyTomcat/Lib.DynLibUtils
+    WindowsVersion - github.com/TheLazyTomcat/Lib.WindowsVersion
+    SimpleCPUID    - github.com/TheLazyTomcat/Lib.SimpleCPUID
+
+===============================================================================}
 unit DevILU;
 
 {$INCLUDE '.\DevIL_defs.inc'}
@@ -6,9 +76,6 @@ interface
 
 uses
   DevIL;
-
-const
-  ILU_UNICODE = {$IFDEF DevIL_Unicode}True{$ELSE}False{$ENDIF};
 
 {===============================================================================
     Constants
@@ -131,20 +198,20 @@ var
   iluCompareImage:   Function(Comp: ILuint): ILboolean; stdcall = nil;
   iluContrast:       Function(Contrast: ILfloat): ILboolean; stdcall = nil;
   iluCrop:           Function(XOff,YOff,ZOff,Width,Height,Depth: ILuint): ILboolean; stdcall = nil;
-  iluDeleteImage:    procedure(Id: ILuint); stdcall = nil;  // Deprecated
+  iluDeleteImage:    procedure(Id: ILuint); stdcall = nil;                      // Deprecated (use ilDeleteImage)
   iluEdgeDetectE:    Function: ILboolean; stdcall = nil;
   iluEdgeDetectP:    Function: ILboolean; stdcall = nil;
   iluEdgeDetectS:    Function: ILboolean; stdcall = nil;
   iluEmboss:         Function: ILboolean; stdcall = nil;
   iluEnlargeCanvas:  Function(Width,Height,Depth: ILuint): ILboolean; stdcall = nil;
   iluEnlargeImage:   Function(XDim,YDim,ZDim: ILfloat): ILboolean; stdcall = nil;
-  iluEqualize:       Function: ILboolean; stdcall = nil;
+  iluEqualize:       Function: ILboolean; stdcall = nil;                        // sometimes produces floating point error (invalid operation)
   iluEqualize2:      Function: ILboolean; stdcall = nil;
   iluErrorString:    Function(Error: ILenum): ILconst_string; stdcall = nil;
   iluConvolution:    Function(matrix: ILint_p; scale,bias: ILint): ILboolean; stdcall = nil;
-  iluFlipImage:      Function: ILboolean; stdcall = nil;
+  iluFlipImage:      Function: ILboolean; stdcall = nil;                        // vertical mirror
   iluGammaCorrect:   Function(Gamma: ILfloat): ILboolean; stdcall = nil;
-  iluGenImage:       Function: ILuint; stdcall = nil; // Deprecated
+  iluGenImage:       Function: ILuint; stdcall = nil;                           // Deprecated (use ilGenImage)
   iluGetImageInfo:   procedure(Info: ILinfo_p); stdcall = nil;
   iluGetInteger:     Function(Mode: ILenum): ILuint; stdcall = nil;
   iluGetIntegerv:    procedure(Mode: ILenum; Param: ILint_p); stdcall = nil;
@@ -153,7 +220,7 @@ var
   iluInit:           procedure; stdcall = nil;
   iluInvertAlpha:    Function: ILboolean; stdcall = nil;
   iluLoadImage:      Function(FileName: ILconst_string): ILuint; stdcall = nil;
-  iluMirror:         Function: ILboolean; stdcall = nil;
+  iluMirror:         Function: ILboolean; stdcall = nil;                        // horizontal mirror
   iluNegative:       Function: ILboolean; stdcall = nil;
   iluNoisify:        Function(Tolerance: ILclampf): ILboolean; stdcall = nil;
   iluPixelize:       Function(PixSize: ILuint): ILboolean; stdcall = nil;
@@ -161,7 +228,7 @@ var
   iluRegioniv:       procedure(Points: ILpointi_p; n: ILuint); stdcall = nil;
   iluReplaceColour:  Function(Red,Green,Blue: ILubyte; Tolerance: ILfloat): ILboolean; stdcall = nil;
   iluRotate:         Function(Angle: ILfloat): ILboolean; stdcall = nil;
-  iluRotate3D:       Function(x,y,z,Angle: ILfloat): ILboolean; stdcall = nil;
+  iluRotate3D:       Function(x,y,z,Angle: ILfloat): ILboolean; stdcall = nil;  // not implemented
   iluSaturate1f:     Function(Saturation: ILfloat): ILboolean; stdcall = nil;
   iluSaturate4f:     Function(r,g,b,Saturation: ILfloat): ILboolean; stdcall = nil;
   iluScale:          Function(Width,Height,Depth: ILuint): ILboolean; stdcall = nil;
@@ -170,6 +237,10 @@ var
   iluSepia:          Function: ILboolean; stdcall = nil;
   iluSetLanguage:    Function(Language: ILenum): ILboolean; stdcall = nil;
   iluSharpen:        Function(Factor: ILfloat; Iter: ILuint): ILboolean; stdcall = nil;
+{
+  iluSwapColours does not work (data are not changed) and also produces access
+  violation if internal variable iluCurImage was not set by a previous call(s).
+}
   iluSwapColours:    Function: ILboolean; stdcall = nil;
   iluWave:           Function(Angle: ILfloat): ILboolean; stdcall = nil;
 
@@ -177,12 +248,13 @@ var
   iluSwapColors:     Function: ILboolean; stdcall = nil;
   iluReplaceColor:   Function(Red,Green,Blue: ILubyte; Tolerance: ILfloat): ILboolean; stdcall = nil;
 {
-  Note that in the original header, the following function is declared as:
+  In the original header, the following function is declared as:
 
     #define iluScaleColor   iluScaleColour
 
-  So as an alias for iluScaleColour, which afaik does not exist. I am assuming
-  this is an error, and should look this way:
+  So as an alias for iluScaleColour, which afaik does not exist (note the
+  missing "s" at the end).
+  I am assuming this is an error, and it should look this way:
 
     #define iluScaleColors  iluScaleColours
 }
@@ -199,5 +271,93 @@ Function DevILU_Initialize(const LibPath: String = DevIL_LibFileName; InitLib: B
 procedure DevILU_Finalize(FinalLib: Boolean = True);
 
 implementation
+
+uses
+  DynLibUtils;
+
+{===============================================================================
+    Library loading - implementation
+===============================================================================}
+var
+  DevILU_LibraryHandle: TDLULibraryHandle = DefaultLibraryHandle;
+
+//------------------------------------------------------------------------------
+
+Function DevILU_Initialized: Boolean;
+begin
+Result := CheckLibrary(DevILU_LibraryHandle);
+end;
+
+//------------------------------------------------------------------------------
+
+Function DevILU_Initialize(const LibPath: String = DevIL_LibFileName; InitLib: Boolean = True): Boolean;
+begin
+Result := OpenLibraryAndResolveSymbols(LibPath,DevILU_LibraryHandle,[
+  Symbol(@@iluAlienify,      'iluAlienify'),
+  Symbol(@@iluBlurAvg,       'iluBlurAvg'),
+  Symbol(@@iluBlurGaussian,  'iluBlurGaussian'),
+  Symbol(@@iluBuildMipmaps,  'iluBuildMipmaps'),
+  Symbol(@@iluColoursUsed,   'iluColoursUsed'),
+  Symbol(@@iluCompareImage,  'iluCompareImage'),
+  Symbol(@@iluContrast,      'iluContrast'),
+  Symbol(@@iluCrop,          'iluCrop'),
+  Symbol(@@iluDeleteImage,   'iluDeleteImage'),
+  Symbol(@@iluEdgeDetectE,   'iluEdgeDetectE'),
+  Symbol(@@iluEdgeDetectP,   'iluEdgeDetectP'),
+  Symbol(@@iluEdgeDetectS,   'iluEdgeDetectS'),
+  Symbol(@@iluEmboss,        'iluEmboss'),
+  Symbol(@@iluEnlargeCanvas, 'iluEnlargeCanvas'),
+  Symbol(@@iluEnlargeImage,  'iluEnlargeImage'),
+  Symbol(@@iluEqualize,      'iluEqualize'),
+  Symbol(@@iluEqualize2,     'iluEqualize2'),
+  Symbol(@@iluErrorString,   'iluErrorString'),
+  Symbol(@@iluConvolution,   'iluConvolution'),
+  Symbol(@@iluFlipImage,     'iluFlipImage'),
+  Symbol(@@iluGammaCorrect,  'iluGammaCorrect'),
+  Symbol(@@iluGenImage,      'iluGenImage'),
+  Symbol(@@iluGetImageInfo,  'iluGetImageInfo'),
+  Symbol(@@iluGetInteger,    'iluGetInteger'),
+  Symbol(@@iluGetIntegerv,   'iluGetIntegerv'),
+  Symbol(@@iluGetString,     'iluGetString'),
+  Symbol(@@iluImageParameter,'iluImageParameter'),
+  Symbol(@@iluInit,          'iluInit'),
+  Symbol(@@iluInvertAlpha,   'iluInvertAlpha'),
+  Symbol(@@iluLoadImage,     'iluLoadImage'),
+  Symbol(@@iluMirror,        'iluMirror'),
+  Symbol(@@iluNegative,      'iluNegative'),
+  Symbol(@@iluNoisify,       'iluNoisify'),
+  Symbol(@@iluPixelize,      'iluPixelize'),
+  Symbol(@@iluRegionfv,      'iluRegionfv'),
+  Symbol(@@iluRegioniv,      'iluRegioniv'),
+  Symbol(@@iluReplaceColour, 'iluReplaceColour'),
+  Symbol(@@iluRotate,        'iluRotate'),
+  Symbol(@@iluRotate3D,      'iluRotate3D'),
+  Symbol(@@iluSaturate1f,    'iluSaturate1f'),
+  Symbol(@@iluSaturate4f,    'iluSaturate4f'),
+  Symbol(@@iluScale,         'iluScale'),
+  Symbol(@@iluScaleAlpha,    'iluScaleAlpha'),
+  Symbol(@@iluScaleColours,  'iluScaleColours'),
+  Symbol(@@iluSepia,         'iluSepia'),
+  Symbol(@@iluSetLanguage,   'iluSetLanguage'),
+  Symbol(@@iluSharpen,       'iluSharpen'),
+  Symbol(@@iluSwapColours,   'iluSwapColours'),
+  Symbol(@@iluWave,          'iluWave')],True) = 49;
+// aliasses  
+iluColorsUsed := iluColoursUsed;
+iluSwapColors := iluSwapColours;
+iluReplaceColor := iluReplaceColour;
+iluScaleColors := iluScaleColours;
+// init
+If Result and InitLib then
+  iluInit; 
+end;
+
+//------------------------------------------------------------------------------
+
+procedure DevILU_Finalize(FinalLib: Boolean = True);
+begin
+If FinalLib then; // do nothing, afaik ILU does not implement any finalization
+CloseLibrary(DevILU_LibraryHandle);
+end;
 
 end.
