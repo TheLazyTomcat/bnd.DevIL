@@ -75,11 +75,19 @@ unit DevIL;
 interface
 
 uses
-  Classes,
+  SysUtils, Classes,
   AuxTypes;
 
 const
   IL_UNICODE = {$IFDEF DevIL_Unicode}True{$ELSE}False{$ENDIF};
+
+{===============================================================================
+    Library-specific exceptions
+===============================================================================}
+type
+  EILException = class(Exception);
+
+  EILStreamTooLarge = class(EILException);
 
 {===============================================================================
     Basic types
@@ -458,7 +466,7 @@ type
   fGetcProc   = Function(Handle: ILHANDLE): ILint; stdcall;
   fOpenRProc  = Function(FileName: ILconst_string): ILHANDLE; stdcall;
   fReadProc   = Function(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall; // number = count
-  fSeekRProc  = Function(Handle: ILHANDLE; Offset,Mode: ILuint): ILint; stdcall; // mode = origin (contants above, eg. IL_SEEK_SET)
+  fSeekRProc  = Function(Handle: ILHANDLE; Offset,Mode: ILint): ILint; stdcall; // mode = origin (contants above, eg. IL_SEEK_SET)
   fTellRProc  = Function(Handle: ILHANDLE): ILint; stdcall;
 
   // Callback functions for file writing
@@ -627,32 +635,32 @@ Function ILStrDecode(Str: ILstring): String;
 Function ILBoolEncode(B: Boolean): ILboolean;
 Function ILBoolDecode(B: ILboolean): Boolean;
 
+{===============================================================================
+    Implemented functions - declaration
+===============================================================================}
+{
+  Following three functions are using DevIL's integrated system for user-
+  implemented IO streaming to provide functions accepting pascal stream objects
+  when loading or saving pictures.
 
-Function ilLoadStream(Stream: TStream): ILuint;
+    WARNING - given the DevIL implementation, the passed stream must not be
+              larger than 2GiB minus one byte (2147483647 bytes). In case of
+              saving, this limit is halved (so 1GiB - 1) to at least partially
+              account for size of data being saved. If you fail to follow this
+              rule, then an EILStreamTooLarge exception will be raised.
+
+    NOTE - reading and writing is done from current possition in the stream.
+           Position after the call is undefined, do not assume anything about
+           its value.
+}   
+Function ilDetermineTypeS(Stream: TStream): ILenum;
+Function ilLoadS(aType: ILenum; Stream: TStream): ILboolean;
+Function ilSaveS(aType: ILenum; Stream: TStream): ILuint;
 
 implementation
 
 uses
   DynLibUtils, StrRect;
-
-type
-  TILStreamReadData = record
-    Stream:   TStream;
-    InitPos:  Int64;
-  end;
-  PILStreamReadData = ^TILStreamReadData;
-(*
-procedure StreamRead_CloseRProc(Handle: ILHANDLE); stdcall;
-Function StreamRead_EofProc(Handle: ILHANDLE): ILboolean; stdcall;
-Function StreamRead_GetcProc(Handle: ILHANDLE): ILint; stdcall;
-Function StreamRead_OpenRProc(FileName: ILconst_string): ILHANDLE; stdcall;
-Function StreamRead_ReadProc(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall;
-Function StreamRead_SeekRProc(Handle: ILHANDLE; Offset,Mode: ILuint): ILint; stdcall;
-Function StreamRead_TellRProc(Handle: ILHANDLE): ILint; stdcall;
-*)
-Function ilLoadStream(Stream: TStream): ILuint;
-begin
-end;
 
 {===============================================================================
     Header macros - implementation
@@ -929,6 +937,169 @@ end;
 Function ILBoolDecode(B: ILboolean): Boolean;
 begin
 Result := B <> IL_FALSE;
+end;
+
+{===============================================================================
+    Implemented functions - implementation
+===============================================================================}
+type
+  TILStreamData = record
+    Stream:   TStream;
+    InitPos:  Int64;
+  end;
+
+{-------------------------------------------------------------------------------
+    Implemented functions - implementation - internals
+-------------------------------------------------------------------------------}
+
+Function Stream_OpenProc(FileName: ILconst_string): ILHANDLE; stdcall;
+begin
+Result := ILHANDLE(FileName); // just to prevend "unused parameter" warnings
+end;
+
+//------------------------------------------------------------------------------
+
+procedure Stream_CloseProc(Handle: ILHANDLE); stdcall;
+begin
+If Assigned(Handle) then; // prevent warning
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function Stream_ReadProc(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall;
+begin
+Size := Number; // prevent warning
+Result := ILint(TILStreamData(Handle^).Stream.Read(Buffer^,LongInt(Size)));
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function Stream_WriteProc(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall;
+begin
+Size := Number; // prevent warning
+Result := ILint(TILStreamData(Handle^).Stream.Write(Buffer^,LongInt(Size)));
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function Stream_GetcProc(Handle: ILHANDLE): ILint; stdcall;
+var
+  Buffer: UInt8;
+begin
+If TILStreamData(Handle^).Stream.Read(Addr(Buffer)^,1) >= 1 then
+  Result := Buffer
+else
+  Result := IL_EOF;
+end;
+ 
+//------------------------------------------------------------------------------
+
+Function Stream_PutcProc(C: ILubyte; Handle: ILHANDLE): ILint; stdcall;
+begin
+If TILStreamData(Handle^).Stream.Write(C,1) >= 1 then
+  Result := C
+else
+  Result := IL_EOF;
+end;
+  
+//------------------------------------------------------------------------------
+
+Function Stream_SeekProc(Handle: ILHANDLE; Offset,Mode: ILint): ILint; stdcall;
+var
+  SeekOrigin: TSeekOrigin;
+begin
+case Mode of
+  IL_SEEK_CUR:  SeekOrigin := soCurrent;
+  IL_SEEK_END:  SeekOrigin := soEnd;
+else
+  {IL_SEEK_SET} SeekOrigin := soBeginning;
+end;
+with TILStreamData(Handle^) do
+  Result := ILint(Stream.Seek(Int64(Offset),SeekOrigin) - InitPos);
+end;
+  
+//------------------------------------------------------------------------------
+
+Function Stream_TellProc(Handle: ILHANDLE): ILint; stdcall;
+begin
+with TILStreamData(Handle^) do
+  Result := ILint(Stream.Position - InitPos);
+end;
+  
+//------------------------------------------------------------------------------
+
+Function Stream_EofProc(Handle: ILHANDLE): ILboolean; stdcall;
+begin
+with TILStreamData(Handle^) do
+  Result := ILBoolEncode(Stream.Position = Stream.Size);
+end;
+
+{-------------------------------------------------------------------------------
+    Implemented functions - implementation - public
+-------------------------------------------------------------------------------}
+
+Function ilDetermineTypeS(Stream: TStream): ILenum;
+var
+  StreamData: TILStreamData;
+begin
+If Stream.Size <= High(ILint) then
+  begin
+    StreamData.Stream := Stream;
+    StreamData.InitPos := Stream.Position;
+    // ilSetRead always succeeds
+    ilSetRead(Stream_OpenProc,Stream_CloseProc,Stream_EofProc,Stream_GetcProc,Stream_ReadProc,Stream_SeekProc,Stream_TellProc);
+    try
+      Result := ilDetermineTypeF(ILHANDLE(@StreamData));
+    finally
+      ilResetRead;
+    end;
+  end
+else raise EILStreamTooLarge.CreateFmt('ilDetermineTypeS: Stream too large (%d).',[Stream.Size]);
+end;
+
+//------------------------------------------------------------------------------
+
+Function ilLoadS(aType: ILenum; Stream: TStream): ILboolean;
+var
+  StreamData: TILStreamData;
+begin
+If Stream.Size <= High(ILint) then
+  begin
+    StreamData.Stream := Stream;
+    StreamData.InitPos := Stream.Position;
+    ilSetRead(Stream_OpenProc,Stream_CloseProc,Stream_EofProc,Stream_GetcProc,Stream_ReadProc,Stream_SeekProc,Stream_TellProc);
+    try
+      Result := ilLoadF(aType,ILHANDLE(@StreamData));
+    finally
+      ilResetRead;
+    end;
+  end
+else raise EILStreamTooLarge.CreateFmt('ilDetermineTypeS: Stream too large (%d).',[Stream.Size]);
+end;
+
+//------------------------------------------------------------------------------
+
+Function ilSaveS(aType: ILenum; Stream: TStream): ILuint;
+var
+  StreamData: TILStreamData;
+begin
+{
+  I know the following check is not enough to fully account for the size of
+  data being written. But there is no way of obtaining the resulting size
+  without using temporary memory storage, which I want to avoid.
+}
+If Stream.Size <= (High(ILint) shr 1) then
+  begin
+    StreamData.Stream := Stream;
+    StreamData.InitPos := Stream.Position;
+    ilSetWrite(Stream_OpenProc,Stream_CloseProc,Stream_PutcProc,Stream_SeekProc,Stream_TellProc,Stream_WriteProc);
+    try
+      Result := ilSaveF(aType,ILHANDLE(@StreamData));
+    finally
+      ilResetWrite;
+    end;
+  end
+else raise EILStreamTooLarge.CreateFmt('ilDetermineTypeS: Stream too large (%d).',[Stream.Size]);
 end;
 
 end.
