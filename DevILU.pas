@@ -22,7 +22,7 @@
         words (eg. Type, File, ...)
       - most inline comments present in header files were copied into the
         translation at corresponding place
-      - DevILU require DevIL (DevIL.dll) to be already loaded and initialized,
+      - DevILU requires DevIL (DevIL.dll) to be already loaded and initialized,
         similarly DevILUT require both DevIL and DevILU to be already loaded
         and initialized
       - if you plan to use unicode version of the api, remember to also use
@@ -31,7 +31,7 @@
         ones exported by provided binaries (DLLs)
       - some helper function are provided for conversions between usual pascal
         types and types used in the API (booleans, strings)
-      - current translation is for Windows OS only
+      - current translation is for Windows OS only (Linux is planned)
 
     WARNING - the DevIL library is, as far as I know, NOT thread safe. You can
               use it in any number of threads, but make sure it will never

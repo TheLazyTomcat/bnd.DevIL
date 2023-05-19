@@ -22,7 +22,7 @@
         words (eg. Type, File, ...)
       - most inline comments present in header files were copied into the
         translation at corresponding place
-      - DevILU require DevIL (DevIL.dll) to be already loaded and initialized,
+      - DevILU requires DevIL (DevIL.dll) to be already loaded and initialized,
         similarly DevILUT require both DevIL and DevILU to be already loaded
         and initialized
       - if you plan to use unicode version of the api, remember to also use
@@ -31,7 +31,7 @@
         ones exported by provided binaries (DLLs)
       - some helper function are provided for conversions between usual pascal
         types and types used in the API (booleans, strings)
-      - current translation is for Windows OS only
+      - current translation is for Windows OS only (Linux is planned)
 
     WARNING - the DevIL library is, as far as I know, NOT thread safe. You can
               use it in any number of threads, but make sure it will never
@@ -257,10 +257,17 @@ Result := OpenLibraryAndResolveSymbols(LibPath,DevILUT_LibraryHandle,[
   Symbol(@@ilutGLScreen,      'ilutGLScreen'),
   Symbol(@@ilutGLScreenie,    'ilutGLScreenie'),
   Symbol(@@ilutGLSaveImage,   'ilutGLSaveImage'),
+{$IF Defined(Windows) and Defined(x86)}
   Symbol(@@ilutGLSubTex2D,    '_ilutGLSubTex2D@12'),
   Symbol(@@ilutGLSubTex3D,    '_ilutGLSubTex3D@16'),
   Symbol(@@ilutGLSetTex2D,    '_ilutGLSetTex2D@4'),
   Symbol(@@ilutGLSetTex3D,    '_ilutGLSetTex3D@4'),
+{$ELSE}
+  Symbol(@@ilutGLSubTex2D,    'ilutGLSubTex2D'),
+  Symbol(@@ilutGLSubTex3D,    'ilutGLSubTex3D'),
+  Symbol(@@ilutGLSetTex2D,    'ilutGLSetTex2D'),
+  Symbol(@@ilutGLSetTex3D,    'ilutGLSetTex3D'),
+{$IFEND}
   Symbol(@@ilutGLTexImage,    'ilutGLTexImage'),
   Symbol(@@ilutGLSetTex,      'ilutGLSetTex'),
   Symbol(@@ilutGLSubTex,      'ilutGLSubTex')

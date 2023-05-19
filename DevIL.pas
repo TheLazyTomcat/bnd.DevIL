@@ -22,7 +22,7 @@
         words (eg. Type, File, ...)
       - most inline comments present in header files were copied into the
         translation at corresponding place
-      - DevILU require DevIL (DevIL.dll) to be already loaded and initialized,
+      - DevILU requires DevIL (DevIL.dll) to be already loaded and initialized,
         similarly DevILUT require both DevIL and DevILU to be already loaded
         and initialized
       - if you plan to use unicode version of the api, remember to also use
@@ -31,7 +31,7 @@
         ones exported by provided binaries (DLLs)
       - some helper function are provided for conversions between usual pascal
         types and types used in the API (booleans, strings)
-      - current translation is for Windows OS only
+      - current translation is for Windows OS only (Linux is planned)
 
     WARNING - the DevIL library is, as far as I know, NOT thread safe. You can
               use it in any number of threads, but make sure it will never
@@ -639,23 +639,25 @@ Function ILBoolDecode(B: ILboolean): Boolean;
     Implemented functions - declaration
 ===============================================================================}
 {
-  Following three functions are using DevIL's integrated system for user-
+  Following five functions are using DevIL's integrated system for user-
   implemented IO streaming to provide functions accepting pascal stream objects
   when loading or saving pictures.
 
     WARNING - given the DevIL implementation, the passed stream must not be
               larger than 2GiB minus one byte (2147483647 bytes). In case of
               saving, this limit is halved (so 1GiB - 1) to at least partially
-              account for size of data being saved. If you fail to follow this
-              rule, then an EILStreamTooLarge exception will be raised.
+              account for size of data being saved. If you pass larger stream,
+              then an EILStreamTooLarge exception will be raised.
 
     NOTE - reading and writing is done from current possition in the stream.
            Position after the call is undefined, do not assume anything about
            its value.
-}   
+}
+Function ilIsValidS(aType: ILenum; Stream: TStream): ILboolean;
 Function ilDetermineTypeS(Stream: TStream): ILenum;
 Function ilLoadS(aType: ILenum; Stream: TStream): ILboolean;
-Function ilSaveS(aType: ILenum; Stream: TStream): ILuint;
+Function ilSaveS(aType: ILenum; Stream: TStream): ILuint;  
+Function ilLoadDataS(Stream: TStream; Width,Height,Depth: ILuint; Bpp: ILubyte): ILboolean;
 
 implementation
 
@@ -781,7 +783,11 @@ Result := OpenLibraryAndResolveSymbols(LibPath,DevIL_LibraryHandle,[
   Symbol(@@ilDxtcDataToImage,           'ilDxtcDataToImage'),
   Symbol(@@ilDxtcDataToSurface,         'ilDxtcDataToSurface'),
   Symbol(@@ilEnable,                    'ilEnable'),
+{$IF Defined(Windows) and Defined(x86)}         
   Symbol(@@ilFlipSurfaceDxtcData,       '_ilFlipSurfaceDxtcData@0'), // dunno, this is how the symbol is exported
+{$ELSE}
+  Symbol(@@ilFlipSurfaceDxtcData,       'ilFlipSurfaceDxtcData'),
+{$IFEND}
   Symbol(@@ilFormatFunc,                'ilFormatFunc'),
   Symbol(@@ilGenImages,                 'ilGenImages'),
   Symbol(@@ilGenImage,                  'ilGenImage'),
@@ -797,7 +803,11 @@ Result := OpenLibraryAndResolveSymbols(LibPath,DevIL_LibraryHandle,[
   Symbol(@@ilGetPalette,                'ilGetPalette'),
   Symbol(@@ilGetString,                 'ilGetString'),
   Symbol(@@ilHint,                      'ilHint'),
+{$IF Defined(Windows) and Defined(x86)}
   Symbol(@@ilInvertSurfaceDxtcDataAlpha,'_ilInvertSurfaceDxtcDataAlpha@0'),
+{$ELSE}
+  Symbol(@@ilInvertSurfaceDxtcDataAlpha,'ilInvertSurfaceDxtcDataAlpha'),
+{$IFEND}
   Symbol(@@ilInit,                      'ilInit'),
   Symbol(@@ilImageToDxtcData,           'ilImageToDxtcData'),
   Symbol(@@ilIsDisabled,                'ilIsDisabled'),
@@ -968,18 +978,16 @@ end;
 
 Function Stream_ReadProc(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall;
 begin
-Size := Number; // prevent warning
-Result := ILint(TILStreamData(Handle^).Stream.Read(Buffer^,LongInt(Size)));
+Result := ILint(TILStreamData(Handle^).Stream.Read(Buffer^,LongInt(Size * Number)) div LongInt(Size));
 end;
  
 //------------------------------------------------------------------------------
 
 Function Stream_WriteProc(Buffer: Pointer; Size,Number: ILuint; Handle: ILHANDLE): ILint; stdcall;
 begin
-Size := Number; // prevent warning
-Result := ILint(TILStreamData(Handle^).Stream.Write(Buffer^,LongInt(Size)));
+Result := ILint(TILStreamData(Handle^).Stream.Write(Buffer^,LongInt(Size * Number)) div LongInt(Size));
 end;
- 
+
 //------------------------------------------------------------------------------
 
 Function Stream_GetcProc(Handle: ILHANDLE): ILint; stdcall;
@@ -1038,6 +1046,26 @@ end;
     Implemented functions - implementation - public
 -------------------------------------------------------------------------------}
 
+Function ilIsValidS(aType: ILenum; Stream: TStream): ILboolean;
+var
+  StreamData: TILStreamData;
+begin
+If Stream.Size <= High(ILint) then
+  begin
+    StreamData.Stream := Stream;
+    StreamData.InitPos := Stream.Position;
+    ilSetRead(Stream_OpenProc,Stream_CloseProc,Stream_EofProc,Stream_GetcProc,Stream_ReadProc,Stream_SeekProc,Stream_TellProc);
+    try
+      Result := ilIsValidF(aType,ILHANDLE(@StreamData));
+    finally
+      ilResetRead;
+    end;
+  end
+else raise EILStreamTooLarge.CreateFmt('ilIsValidS: Stream too large (%d).',[Stream.Size]);
+end;
+
+//------------------------------------------------------------------------------
+
 Function ilDetermineTypeS(Stream: TStream): ILenum;
 var
   StreamData: TILStreamData;
@@ -1046,7 +1074,6 @@ If Stream.Size <= High(ILint) then
   begin
     StreamData.Stream := Stream;
     StreamData.InitPos := Stream.Position;
-    // ilSetRead always succeeds
     ilSetRead(Stream_OpenProc,Stream_CloseProc,Stream_EofProc,Stream_GetcProc,Stream_ReadProc,Stream_SeekProc,Stream_TellProc);
     try
       Result := ilDetermineTypeF(ILHANDLE(@StreamData));
@@ -1074,7 +1101,7 @@ If Stream.Size <= High(ILint) then
       ilResetRead;
     end;
   end
-else raise EILStreamTooLarge.CreateFmt('ilDetermineTypeS: Stream too large (%d).',[Stream.Size]);
+else raise EILStreamTooLarge.CreateFmt('ilLoadS: Stream too large (%d).',[Stream.Size]);
 end;
 
 //------------------------------------------------------------------------------
@@ -1099,7 +1126,27 @@ If Stream.Size <= (High(ILint) shr 1) then
       ilResetWrite;
     end;
   end
-else raise EILStreamTooLarge.CreateFmt('ilDetermineTypeS: Stream too large (%d).',[Stream.Size]);
+else raise EILStreamTooLarge.CreateFmt('ilSaveS: Stream too large (%d).',[Stream.Size]);
+end;
+
+//------------------------------------------------------------------------------
+
+Function ilLoadDataS(Stream: TStream; Width,Height,Depth: ILuint; Bpp: ILubyte): ILboolean;
+var
+  StreamData: TILStreamData;
+begin
+If Stream.Size <= High(ILint) then
+  begin
+    StreamData.Stream := Stream;
+    StreamData.InitPos := Stream.Position;
+    ilSetRead(Stream_OpenProc,Stream_CloseProc,Stream_EofProc,Stream_GetcProc,Stream_ReadProc,Stream_SeekProc,Stream_TellProc);
+    try
+      Result := ilLoadDataF(ILHANDLE(@StreamData),Width,Height,Depth,Bpp);
+    finally
+      ilResetRead;
+    end;
+  end
+else raise EILStreamTooLarge.CreateFmt('ilLoadDataS: Stream too large (%d).',[Stream.Size]);
 end;
 
 end.
