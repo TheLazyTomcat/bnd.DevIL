@@ -994,7 +994,7 @@ Function Stream_GetcProc(Handle: ILHANDLE): ILint; stdcall;
 var
   Buffer: UInt8;
 begin
-If TILStreamData(Handle^).Stream.Read(Addr(Buffer)^,1) >= 1 then
+If TILStreamData(Handle^).Stream.Read(Addr(Buffer)^,1) = 1 then
   Result := Buffer
 else
   Result := IL_EOF;
@@ -1004,7 +1004,7 @@ end;
 
 Function Stream_PutcProc(C: ILubyte; Handle: ILHANDLE): ILint; stdcall;
 begin
-If TILStreamData(Handle^).Stream.Write(C,1) >= 1 then
+If TILStreamData(Handle^).Stream.Write(C,1) = 1 then
   Result := C
 else
   Result := IL_EOF;
@@ -1019,11 +1019,14 @@ begin
 case Mode of
   IL_SEEK_CUR:  SeekOrigin := soCurrent;
   IL_SEEK_END:  SeekOrigin := soEnd;
+  IL_SEEK_SET:  SeekOrigin := soBeginning;
 else
-  {IL_SEEK_SET} SeekOrigin := soBeginning;
+  Result := -1;
+  Exit;
 end;
 with TILStreamData(Handle^) do
-  Result := ILint(Stream.Seek(Int64(Offset),SeekOrigin) - InitPos);
+  Stream.Seek(Int64(Offset + InitPos),SeekOrigin);
+Result := 0;  // success
 end;
   
 //------------------------------------------------------------------------------
