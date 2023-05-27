@@ -12,7 +12,9 @@
     Direct translation of C header file ilu.h, a part of bindings for DevIL
     library, into pascal.
 
-    More info about the DevIL library can be found at: http://openil.sf.net
+    More info about the DevIL library can be found at:
+
+      https://openil.sourceforge.net
 
     Translation notes:
 
@@ -35,14 +37,14 @@
 
     WARNING - the DevIL library is, as far as I know, NOT thread safe. You can
               use it in any number of threads, but make sure it will never
-              execute any of its code concurently (in more than one thread at
+              execute any of its code concurrently (in more than one thread at
               any given time).
 
-  Version 1.0 (2023-05-__)
+  Version 1.0 (2023-05-27)
 
   Build against DevIL library version 1.8.0
 
-  Last change 2023-05-__
+  Last change 2023-05-27
 
   ©2023 František Milt
 

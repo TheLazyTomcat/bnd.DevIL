@@ -1,7 +1,7 @@
 --- DevIL bindings ---
 
 This is a direct translation of bindings to DevIL library (more info can be 
-found here: http://openil.sf.net) into pscal.
+found here: https://openil.sourceforge.net) into pscal.
 It is written for dynamic linking and loading (DLL) and is compatible with both 
 Delphi and FPC.
 
@@ -11,6 +11,11 @@ Only files in root directory are direct part of this project. Files in
 subdirectories (mainly DLL files) were taken from DevIL project and are 
 therefore not my work. They are provided only for completeness, since the 
 binding depends on them.
+
+--- note on DLLs ---
+
+The provided DLLs require Microsoft Visual C++ 2015 Redistributable to be 
+installed on the system.
 
 --- licensing ---
 
